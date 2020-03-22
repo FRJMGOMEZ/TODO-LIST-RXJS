@@ -1,6 +1,7 @@
 import './styles.css'
 import { Todo, TodoList } from './classes/index';
-import { createTodoHtml, toggleTaskHtml, removeTaskHmtl, removeAllTasksHtml, renderActiveTasksCount, renderFilterClass } from './js/components';
+import { createTodoHtml, toggleTaskHtml, removeTaskHmtl, removeAllTasksHtml, renderActiveTasksCount, renderFilterClass } from './js/render';
+import {getTodos,setTodo,replaceTodo,removeTodo} from './js/storage';
 import { fromEvent, Subject } from 'rxjs';
 import { pluck, filter, tap } from 'rxjs/operators'
 
@@ -11,6 +12,25 @@ import { pluck, filter, tap } from 'rxjs/operators'
 
     let taskFilter = '';
 
+    const retrieveStorageTodos = ()=>{
+        let todos = getTodos();
+        todos.forEach((todo)=>{
+            if(!todo.complete){
+                renderActiveTasksCount(1);
+            }
+            createNewTodo(todo);
+        })
+    }
+
+    const createNewTodo = (newTodo)=>{
+        todoList.add(newTodo);
+        if (taskFilter != 'completed') {
+            let li = createTodoHtml(newTodo);
+            toggleListenning(li);
+            deleteTaskListenning(li);
+        }
+    }
+
     const inputListenning = () => {
         const input = document.querySelector('.new-todo')
         const inputSrc$ = fromEvent(input, 'keypress');
@@ -19,15 +39,11 @@ import { pluck, filter, tap } from 'rxjs/operators'
             pluck('target', 'value'),
             filter((task) => { return task != '' }))
             .subscribe((task) => {
-                const newTask = new Todo(task);
-                todoList.add(newTask);
+                const newTodo = new Todo(task);
                 input.value = '';
+                setTodo(newTodo);
                 renderActiveTasksCount(1)
-                if (taskFilter != 'completed') {
-                    let li = createTodoHtml(newTask);
-                    toggleListenning(li);
-                    deleteTaskListenning(li);
-                }
+                createNewTodo(newTodo)
             })
     }
 
@@ -35,7 +51,6 @@ import { pluck, filter, tap } from 'rxjs/operators'
         const ul = document.querySelector('.filters');
         const filterSelections = ul.querySelectorAll('a');
         const filtersSrc$ = fromEvent(filterSelections, 'click');
-
         filtersSrc$
             .pipe(
                 pluck('target'),
@@ -71,7 +86,7 @@ import { pluck, filter, tap } from 'rxjs/operators'
                             if (!task.complete) {
                                 let li = createTodoHtml(task);
                                 toggleListenning(li);
-                                deleteTaskListenning(li);
+                                deleteTaskListenning(li);  
                             }
                         }
                     })
@@ -113,29 +128,31 @@ import { pluck, filter, tap } from 'rxjs/operators'
         checkSrc$
             .pipe(filter((event) => { return event.target.checked }))
             .subscribe(() => {
-                todoList.toggleTodo(li.getAttribute('data-id'))
+                let todo =todoList.toggleTodo(li.getAttribute('data-id'))
                 toggleTaskHtml(li, true)
                 renderActiveTasksCount(-1)
+                replaceTodo(todo);
             })
 
         unCheckSrc$
             .pipe(filter((event) => { return !event.target.checked }))
             .subscribe(() => {
-                todoList.toggleTodo(li.getAttribute('data-id'))
+                let todo= todoList.toggleTodo(li.getAttribute('data-id'))
                 toggleTaskHtml(li, false)
                 renderActiveTasksCount(1)
+                replaceTodo(todo);
             })
     }
 
     const deleteTaskListenning = (li) => {
-
         let destroyButton = li.querySelector('.destroy');
         const destroySrc$ = fromEvent(destroyButton, 'click');
-
         destroySrc$.subscribe(() => {
             removeTaskHmtl(undefined, li);
-            todoList.remove(li.getAttribute('data-id'))
-            if(!Array.from(li.classList).includes('completed')){
+            let todoId = Number(li.getAttribute('data-id'));
+            todoList.remove(todoId)
+             removeTodo(todoId);
+            if(Array.from(li.classList).includes('completed') === false){
                    renderActiveTasksCount(-1)
             }
         })
@@ -144,6 +161,7 @@ import { pluck, filter, tap } from 'rxjs/operators'
     inputListenning();
     filterListenning();
     removeCompleteListening();
+    retrieveStorageTodos();
 
 })()
 
